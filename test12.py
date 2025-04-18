@@ -48,8 +48,6 @@ def pronunciation(raw_audio, reference):
 
     max_len = max(len(reference_phonemes_flat), len(student_phonemes_flat))
 
-    print(max_len)
-
     similarity = (1 - (distance / max_len))*100 if max_len > 0 else 0.0
 
     student_str = " ".join(student_phonemes_flat)
@@ -73,7 +71,7 @@ def pronunciation(raw_audio, reference):
     print("Incorrect Phonemes:", incorrect_pronunciation)
     print(f"Similarity: {similarity:.2f}%")
 
-pronunciation("audio/attack_shark.mp3", "attack shark")
+pronunciation("audio/ava.wav", "ava")
 
 def word_error_rate(raw_audio, reference):
     transcript = speech_to_text(raw_audio)
