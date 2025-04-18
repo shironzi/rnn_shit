@@ -5,7 +5,7 @@ from test2 import GreedyCTCDecoder
 from phonemes import text_to_phonemes
 import editdistance
 
-def pronunciation(raw_audio, reference):
+def speech_to_text(raw_audio):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Load Wav2Vec2 model
@@ -26,31 +26,77 @@ def pronunciation(raw_audio, reference):
     decoder = GreedyCTCDecoder(labels=bundle.get_labels())
     transcript = decoder(emissions[0].cpu())
 
-    # Converts text into phonemes
+    return transcript
+
+def pronunciation(raw_audio, reference):
+
+    transcript = speech_to_text(raw_audio)
+
     student_phonemes = text_to_phonemes(transcript)
     reference_phonemes = text_to_phonemes(reference)
 
-    student_str = ""
-    reference_str = ""
-    for phonemeList in student_phonemes:
-        for phoneme in phonemeList:
-            student_str += phoneme + " "
+    student_phonemes_flat = []
+    reference_phonemes_flat = []
+    
+    for word_phonemes in student_phonemes:
+        student_phonemes_flat.extend(word_phonemes)
+    
+    for word_phonemes in reference_phonemes:
+        reference_phonemes_flat.extend(word_phonemes)
 
-    for phonemeList in reference_phonemes:
-        for phoneme in phonemeList:
-            reference_str += phoneme + " "
+    distance = editdistance.eval(reference_phonemes_flat, student_phonemes_flat)
 
-    # Levenshtein Distance
-    distance = editdistance.eval(reference_str, student_str)
+    max_len = max(len(reference_phonemes_flat), len(student_phonemes_flat))
 
-    max_len = max(len(student_str), len(reference_str))
-    similarity = (1 - (distance / max_len)) if max_len > 0 else 0.0
+    print(max_len)
+
+    similarity = (1 - (distance / max_len))*100 if max_len > 0 else 0.0
+
+    student_str = " ".join(student_phonemes_flat)
+    reference_str = " ".join(reference_phonemes_flat)
+
+    incorrect_pronunciation = []
+    min_len = min(len(reference_phonemes_flat), len(student_phonemes_flat))
+
+    for i in range(min_len):
+        if reference_phonemes_flat[i] != student_phonemes_flat[i]:
+            incorrect_pronunciation.append([reference_phonemes_flat[i], student_phonemes_flat[i]])
+
+    if len(student_phonemes_flat) > len(reference_phonemes_flat):
+        for i in range(min_len, len(student_phonemes_flat)):
+            incorrect_pronunciation.append([student_phonemes_flat[i], ""])
 
     print("Student Speech:", transcript)
     print("Correct Speech:", reference)
     print("Student Phonemes:", student_str)
     print("Correct Phonemes:", reference_str)
+    print("Incorrect Phonemes:", incorrect_pronunciation)
     print(f"Similarity: {similarity:.2f}%")
 
+pronunciation("audio/attack_shark.mp3", "attack shark")
 
-pronunciation("audio/hello.mp3", "hello")
+def word_error_rate(raw_audio, reference):
+    transcript = speech_to_text(raw_audio)
+
+    student_words = transcript.replace("|", " ").lower().split()
+    reference_words = reference.lower().split()
+
+    distance = editdistance.eval(reference_words, student_words)
+    
+    # WER = (Substitutions + Insertions + Deletions) / Number of words in reference
+    wer = distance / max(len(reference_words), 1)
+
+    wer_percentage = wer * 100.0
+    similarity = 100.0 - wer_percentage
+    
+    print("Student Speech:", ' '.join(student_words))
+    print("Correct Speech:", reference)
+    print(f"Word Error Rate: {wer_percentage:.2f}%")
+    print(f"Similarity: {similarity:.2f}%")
+    
+    return wer
+
+
+# word_error_rate("audio/hello_world.mp3", "hello world everyone")
+
+
