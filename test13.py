@@ -1,39 +1,41 @@
-from difflib import SequenceMatcher
-
-import torch
-import torchaudio
-from torchaudio.transforms import Resample
-from test2 import GreedyCTCDecoder
-from phonemes import text_to_phonemes
 import editdistance
+import torch
+from transformers import pipeline
+import difflib
 
+from phonemes import text_to_phonemes
 
-def speech_to_text(raw_audio):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def speech_to_text_whisper(raw_audio):
+    device = 0 if torch.cuda.is_available() else -1
+    asr_pipeline = pipeline(
+        "automatic-speech-recognition",
+        model="openai/whisper-large-v3-turbo",
+        device=device,
+        framework="pt",
+    )
 
-    # Load Wav2Vec2 model
-    bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
-    model = bundle.get_model().to(device)
+    result = asr_pipeline(raw_audio)
+    transcript = result["text"]
 
-    # Load and resample audio
-    waveform, sample_rate = torchaudio.load(raw_audio)
-    if sample_rate != bundle.sample_rate:
-        waveform = Resample(orig_freq=sample_rate, new_freq=bundle.sample_rate)(waveform)
+    return transcript
 
-    waveform = waveform.to(device)
+def speech_to_text_wav2vec2(raw_audio):
+    device = 0 if torch.cuda.is_available() else -1
+    asr_pipeline = pipeline(
+        "automatic-speech-recognition",
+        model="facebook/wav2vec2-base-960h",
+        device=device,
+        framework="pt"
+    )
 
-    with torch.inference_mode():
-        emissions, _ = model(waveform)
-
-    # Use custom greedy decoder
-    decoder = GreedyCTCDecoder(labels=bundle.get_labels())
-    transcript = decoder(emissions[0].cpu())
+    result = asr_pipeline(raw_audio)
+    transcript = result["text"]
 
     return transcript
 
 
 def pronunciation(raw_audio, reference):
-    transcript = speech_to_text(raw_audio)
+    transcript = speech_to_text_wav2vec2(raw_audio)
 
     student_phonemes = text_to_phonemes(transcript)
     reference_phonemes = text_to_phonemes(reference)
@@ -76,48 +78,36 @@ def pronunciation(raw_audio, reference):
     print(f"Similarity: {similarity:.2f}%")
 
 
-# pronunciation("audio/3d72dc66-cf86-463c-8d1c-62015abd2ada.mp3", "this research study investigates the effects of different types of music on wild monkeys the aim of the study is to examine changes in monkey behavior when expose to music particularly in terms of social interaction levels this several findings and identifies potential applications for the animal animal conservation sector")
+
+def word_error_rate(raw_audio_path, reference):
+    transcript = speech_to_text_whisper(raw_audio_path)
+
+    students_words = transcript.lower().split(" ")
+    reference_words = reference.lower().split(" ")
+
+    students_words.pop(0)
+
+    distance = editdistance.eval(reference_words, students_words)
+
+    # WER = (Substitutions + Insertions + Deletions) / Number of words in reference
+    wer = distance / max(len(reference_words), 1)
+    wer_percentage = wer * 100.0
+
+    matcher = difflib.SequenceMatcher(None, reference_words, students_words)
+    missing_words = []
+    
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag in ('delete', 'replace'):
+            # Words in reference but not in transcript (or replaced)
+            missing_words.extend(reference_words[i1:i2])
+    
+    print("Student Speech:", students_words)
+    print("Correct Speech:", reference_words)
+    print("Missing words:", missing_words)
+    print(f"Word Error Rate: {wer_percentage:.2f}%")
+
+word_error_rate("audio/country_philippines.mp3", "I lived at philippines")
 
 
-from metaphone import doublemetaphone
-
-def phonetic_correct(word, reference_vocab):
-    word_code = doublemetaphone(word)[0]
-
-    for ref in reference_vocab:
-        if doublemetaphone(ref)[0] == word_code:
-            return ref  # Return first phonetically matching word
-
-    return word
-
-def word_error_rate(raw_audio, reference):
-    transcript = speech_to_text(raw_audio)
-
-    student_words = transcript.replace("|", " ").lower().split()
-    reference_words = reference.lower().split()
-
-    correct = [phonetic_correct(word, reference_words) for word in student_words]
-
-    print(correct)
-
-    return student_words
-
-    # distance = editdistance.eval(reference_words, student_words)
-    #
-    # # WER = (Substitutions + Insertions + Deletions) / Number of words in reference
-    # wer = distance / max(len(reference_words), 1)
-    #
-    # wer_percentage = wer * 100.0
-    # similarity = 100.0 - wer_percentage
-    #
-    # print("Student Speech:", ' '.join(student_words))
-    # print("Correct Speech:", reference)
-    # print(f"Word Error Rate: {wer_percentage:.2f}%")
-    # print(f"Similarity: {similarity:.2f}%")
-    #
-    # return wer
-
-
-word_error_rate("audio/I_pizza.mp3", "I love Pizza")
-
-
+# result = word_error_rate("audio/i_pizza.mp3", "I love pizza")
+# print(result)
