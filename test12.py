@@ -1,3 +1,5 @@
+from difflib import SequenceMatcher
+
 import torch
 import torchaudio
 from torchaudio.transforms import Resample
@@ -44,6 +46,7 @@ def pronunciation(raw_audio, reference):
     for word_phonemes in reference_phonemes:
         reference_phonemes_flat.extend(word_phonemes)
 
+    # Montreal Forced Aligner
     distance = editdistance.eval(reference_phonemes_flat, student_phonemes_flat)
 
     max_len = max(len(reference_phonemes_flat), len(student_phonemes_flat))
@@ -62,7 +65,7 @@ def pronunciation(raw_audio, reference):
 
     if len(student_phonemes_flat) > len(reference_phonemes_flat):
         for i in range(min_len, len(student_phonemes_flat)):
-            incorrect_pronunciation.append([student_phonemes_flat[i], ""])
+            incorrect_pronunciation.append(["", student_phonemes_flat[i]])
 
     print("Student Speech:", transcript)
     print("Correct Speech:", reference)
@@ -71,7 +74,7 @@ def pronunciation(raw_audio, reference):
     print("Incorrect Phonemes:", incorrect_pronunciation)
     print(f"Similarity: {similarity:.2f}%")
 
-pronunciation("audio/ava.wav", "ava")
+# pronunciation("audio/3d72dc66-cf86-463c-8d1c-62015abd2ada.mp3", "this research study investigates the effects of different types of music on wild monkeys the aim of the study is to examine changes in monkey behavior when expose to music particularly in terms of social interaction levels this several findings and identifies potential applications for the animal animal conservation sector")
 
 def word_error_rate(raw_audio, reference):
     transcript = speech_to_text(raw_audio)
@@ -95,6 +98,6 @@ def word_error_rate(raw_audio, reference):
     return wer
 
 
-# word_error_rate("audio/hello_world.mp3", "hello world everyone")
+word_error_rate("audio/I_pizza.mp3", "I love Pizza")
 
 
