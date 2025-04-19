@@ -107,7 +107,4 @@ def word_error_rate(raw_audio_path, reference):
     print(f"Word Error Rate: {wer_percentage:.2f}%")
 
 word_error_rate("audio/country_philippines.mp3", "I lived at philippines")
-
-
-# result = word_error_rate("audio/i_pizza.mp3", "I love pizza")
-# print(result)
+word_error_rate("audio/i_pizza.mp3", "I love pizza")
