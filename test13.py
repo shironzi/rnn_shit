@@ -80,31 +80,43 @@ def pronunciation(raw_audio, reference):
 
 
 def word_error_rate(raw_audio_path, reference):
+    # Get the transcription
     transcript = speech_to_text_whisper(raw_audio_path)
 
-    students_words = transcript.lower().split(" ")
-    reference_words = reference.lower().split(" ")
+    # Normalize and tokenize both transcript and reference
+    student_words = transcript.lower().strip().split()
+    reference_words = reference.lower().strip().split()
 
-    students_words.pop(0)
+    # Ensure both lists are non-empty
+    if not student_words or not reference_words:
+        print("Error: Transcript or reference is empty.")
+        return None
 
-    distance = editdistance.eval(reference_words, students_words)
+    # Calculate edit distance (insertions, deletions, substitutions)
+    distance = editdistance.eval(reference_words, student_words)
 
-    # WER = (Substitutions + Insertions + Deletions) / Number of words in reference
+    # WER = (S + D + I) / N, where N is the number of words in the reference
     wer = distance / max(len(reference_words), 1)
     wer_percentage = wer * 100.0
 
-    matcher = difflib.SequenceMatcher(None, reference_words, students_words)
+    # Use difflib to find missing and replaced words
+    matcher = difflib.SequenceMatcher(None, reference_words, student_words)
     missing_words = []
-    
+    replaced_words = []
+
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag in ('delete', 'replace'):
-            # Words in reference but not in transcript (or replaced)
+        if tag == 'delete':
             missing_words.extend(reference_words[i1:i2])
-    
-    print("Student Speech:", students_words)
-    print("Correct Speech:", reference_words)
-    print("Missing words:", missing_words)
+        elif tag == 'replace':
+            replaced_words.extend(reference_words[i1:i2])
+
+    print("Student Speech:", " ".join(student_words))
+    print("Correct Speech:", " ".join(reference_words))
+    print("Missing Words:", missing_words)
+    print("Replaced Words:", replaced_words)
     print(f"Word Error Rate: {wer_percentage:.2f}%")
+
+    return wer
 
 word_error_rate("audio/country_philippines.mp3", "I lived at philippines")
 word_error_rate("audio/i_pizza.mp3", "I love pizza")
